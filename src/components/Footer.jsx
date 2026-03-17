@@ -5,37 +5,58 @@ export default function Footer() {
     <footer className="relative z-20 w-full bg-white py-12 px-6 border-t border-slate-200 mt-auto">
       <div className="max-w-7xl mx-auto flex flex-col items-center gap-10">
         
-        {/* Grille des partenaires */}
-        <div className="flex flex-wrap justify-center items-center gap-12">
+        {/* Section Partenaires - Flexbox optimisée pour l'alignement vertical */}
+        <div className="flex flex-wrap justify-center items-center gap-x-12 gap-y-8">
           
-          {/* Affichage partenaires */}
-          <div className="flex flex-wrap justify-center items-center gap-12">
-            <img src="/logo_MESRI_boite_V.png" alt="MESRI" className="h-14 object-contain" />
-            <img src="/logo-auvergne-rhone-alpes.png" alt="AURA" className="h-12 object-contain" />
-            <img src="/polytech.png" alt="Polytech" className="h-12 object-contain" />
-            
-            {/* Séparateur visible sur desktop */}
-            <div className="hidden md:block w-px h-12 bg-slate-200 mx-4"></div>
+          {/* MESRI */}
+          <img 
+            src="/logo_MESRI_boite_V.png" 
+            alt="Ministère de l'Enseignement Supérieur" 
+            className="h-14 w-auto object-contain" 
+          />
+          
+          {/* Région AURA */}
+          <img 
+            src="/logo-auvergne-rhone-alpes.png" 
+            alt="Région Auvergne-Rhône-Alpes" 
+            className="h-12 w-auto object-contain" 
+          />
+          
+          {/* Polytech */}
+          <img 
+            src="/polytech.png" 
+            alt="Polytech Annecy-Chambéry" 
+            className="h-10 w-auto object-contain" 
+          />
 
-            {/* SOPRA STERIA */}
-            <img 
-              src="/sopra.png" 
-              alt="Sopra Steria" 
-              className="h-24 object-contain transition-transform hover:scale-105" 
-            />
-          </div>
+          {/* ABEILLES & ENVIRONNEMENT - Taille ajustée car le logo est large */}
+          <img 
+            src="/logo-abeilles.png" 
+            alt="Abeilles & Environnement" 
+            className="h-16 w-auto object-contain transition-transform hover:scale-105" 
+          />
+
+          {/* Séparateur vertical (caché sur mobile) */}
+          <div className="hidden lg:block w-px h-12 bg-slate-200 mx-2"></div>
+
+          {/* SOPRA STERIA */}
+          <img 
+            src="/sopra.png" 
+            alt="Sopra Steria" 
+            className="h-8 w-auto object-contain transition-transform hover:scale-105" 
+          />
         </div>
 
         {/* Copyright & Version */}
-        <div className="text-center space-y-2">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em]">
-            © 2026 Bee Monitor Version 1.0
-          </p>
-          <div className="flex justify-center gap-4">
-            <span className="h-1 w-1 bg-amber-500 rounded-full"></span>
-            <span className="h-1 w-1 bg-amber-500 rounded-full"></span>
-            <span className="h-1 w-1 bg-amber-500 rounded-full"></span>
+        <div className="text-center space-y-3">
+          <div className="flex justify-center gap-3">
+            <span className="h-1.5 w-1.5 bg-amber-500 rounded-full animate-pulse"></span>
+            <span className="h-1.5 w-1.5 bg-amber-500 rounded-full animate-pulse delay-75"></span>
+            <span className="h-1.5 w-1.5 bg-amber-500 rounded-full animate-pulse delay-150"></span>
           </div>
+          <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.4em]">
+            © 2026 La Ruche Connectée — Tous droits réservés
+          </p>
         </div>
       </div>
     </footer>
