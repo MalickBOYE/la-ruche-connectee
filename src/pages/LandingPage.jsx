@@ -25,8 +25,8 @@ export default function LandingPage() {
       ))}
       
       <div className="relative z-10 flex flex-col items-center justify-center h-full text-center px-4">
-        <h1 className="text-6xl font-black text-white mb-4">BEEMONITOR <span className="text-amber-500">.</span></h1>
-        <p className="text-xl text-slate-300 mb-8 max-w-2xl italic">L'intelligence artificielle au service de vos ruches en temps réel.</p>
+        <h1 className="text-6xl font-black text-white mb-4">La Ruche connectée <span className="text-amber-500">.</span></h1>
+        <p className="text-xl text-slate-300 mb-8 max-w-2xl italic">Surveiller vos ruche, à distance, en temps réel </p>
         <button onClick={() => navigate('/login')} className="bg-amber-500 text-black px-10 py-4 rounded-full font-bold text-lg hover:scale-105 transition-transform shadow-2xl">
           ACCÉDER À LA PLATEFORME
         </button>
