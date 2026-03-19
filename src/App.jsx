@@ -33,6 +33,7 @@ export default function App() {
       }, 3600000); // 1 heure
     }
   };
+  
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -64,7 +65,18 @@ export default function App() {
       Chargement...
     </div>
   );
+useEffect(() => {
+  // Cet écouteur détecte si l'utilisateur est déconnecté ou supprimé
+  const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_OUT' || !session) {
+      navigate('/login'); // Redirige vers la connexion si plus de session
+    }
+  });
 
+  return () => {
+    authListener.subscription.unsubscribe();
+  };
+}, []);
   return (
     <Router>
       {/* MODAL DE TIMEOUT */}
