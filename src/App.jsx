@@ -2,7 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'r
 import { useEffect, useState } from 'react';
 import { supabase } from './lib/supabaseClient';
 
-// Pages
+// Import des Pages
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -12,60 +12,71 @@ import LandingPage from './pages/LandingPage';
 import ForgotPassword from './pages/ForgotPassword';
 import UpdatePassword from './pages/UpdatePassword';
 
-// Ce composant interne gère la navigation sécurisée
+/**
+ * AppContent : Gère la navigation et l'écouteur de session.
+ * Séparé de App pour que useNavigate() soit bien à l'intérieur du contexte <Router>.
+ */
 function AppContent({ session, setSession }) {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Écouteur de session unique : si on se déconnecte, on va au login
+    // Écouteur global pour les changements d'état (Login, Logout, Session expirée)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
       setSession(currentSession);
+      
       if (event === 'SIGNED_OUT') {
         navigate('/login');
       }
     });
 
-    return () => subscription?.unsubscribe();
+    return () => {
+      if (subscription) subscription.unsubscribe();
+    };
   }, [navigate, setSession]);
 
   return (
     <Routes>
-      {/* --- ACCÈS PUBLIC --- */}
+      {/* ROUTES PUBLIQUES */}
       <Route path="/" element={!session ? <LandingPage /> : <Navigate to="/dashboard" replace />} />
       <Route path="/login" element={!session ? <Login /> : <Navigate to="/dashboard" replace />} />
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<UpdatePassword />} />
       
-      {/* --- ACCÈS PROTÉGÉ --- */}
+      {/* ROUTES PROTÉGÉES (Nécessitent une session) */}
       <Route path="/dashboard" element={session ? <Dashboard /> : <Navigate to="/login" replace />} />
       <Route path="/admin-dashboard" element={session ? <AdminDashboard /> : <Navigate to="/login" replace />} />
       <Route path="/hive/:id" element={session ? <HiveDetail /> : <Navigate to="/login" replace />} />
       
-      {/* Redirection si l'URL est erronée */}
+      {/* Redirection automatique pour les URL inconnues */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
 
+/**
+ * Composant Racine
+ */
 export default function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // ÉTAPE CRUCIALE : On vérifie la session AVANT tout affichage
+  // Les Hooks (useState, useEffect) doivent TOUJOURS être appelés au début du composant
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
+    const initialize = async () => {
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      setSession(currentSession);
       setLoading(false);
-    });
+    };
+    initialize();
   }, []);
 
-  // Écran d'attente propre
+  // Le rendu conditionnel de l'écran de chargement se fait APRES les Hooks
   if (loading) {
     return (
       <div className="bg-[#020617] h-screen flex flex-col items-center justify-center gap-4">
         <div className="animate-spin h-10 w-10 border-4 border-amber-500 border-t-transparent rounded-full" />
-        <span className="text-amber-500 font-black uppercase text-[10px] tracking-widest">Initialisation...</span>
+        <span className="text-amber-500 font-black uppercase text-[10px] tracking-[0.3em]">Initialisation...</span>
       </div>
     );
   }
