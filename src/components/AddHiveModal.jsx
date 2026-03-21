@@ -55,15 +55,15 @@ export default function AddHiveModal({ onClose, onRefresh, onSuccess, isOpen }) 
       if (onSuccess) onSuccess();
       if (onRefresh) onRefresh();
       
-      onClose();
+      onClose(); // On ferme la modale ici
     } catch (error) {
       toast.error(`Erreur : ${error.message}`);
     } finally {
       setLoading(false);
     }
+    // LE BLOC EN TROP A ÉTÉ SUPPRIMÉ ICI
   };
 
-  // Si la modale n'est pas censée être ouverte, on ne rend rien (optionnel selon ton Dashboard)
   if (isOpen === false) return null;
 
   return (
@@ -113,7 +113,6 @@ export default function AddHiveModal({ onClose, onRefresh, onSuccess, isOpen }) 
               <Search size={18} className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-600" />
             </div>
             
-            {/* Menu déroulant des suggestions */}
             {addressSuggestions.length > 0 && (
               <div className="absolute z-50 w-full mt-2 bg-slate-900 border border-white/10 rounded-2xl overflow-hidden shadow-2xl backdrop-blur-xl">
                 {addressSuggestions.map((suggestion, index) => (
@@ -149,7 +148,6 @@ export default function AddHiveModal({ onClose, onRefresh, onSuccess, isOpen }) 
             />
           </div>
 
-          {/* BOUTON SOUMISSION DESIGN COMPLET */}
           <button 
             type="submit" 
             disabled={loading} 

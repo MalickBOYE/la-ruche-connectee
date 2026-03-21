@@ -33,7 +33,6 @@ export default function AdminDashboard() {
       setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
 
-      // SÉCURITÉ : Si pas admin, retour au dashboard
       if (!user || user.email !== ADMIN_EMAIL) {
         toast.error("Accès non autorisé");
         navigate('/dashboard');
@@ -42,22 +41,25 @@ export default function AdminDashboard() {
 
       await fetchProfiles();
     } catch (error) {
-      console.error("Erreur d'authentification admin:", error);
+      console.error("Erreur admin:", error);
     } finally {
+      // Sécurité pour éviter le blocage infini de l'écran
       setLoading(false);
     }
   }
 
   async function fetchProfiles() {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .order('created_at', { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    if (error) {
-      toast.error("Impossible de charger les profils");
-    } else {
+      if (error) throw error;
       setProfiles(data || []);
+    } catch (error) {
+      toast.error("Impossible de charger les profils");
+      console.error(error);
     }
   }
 
@@ -149,6 +151,8 @@ export default function AdminDashboard() {
           <tbody className="divide-y divide-white/5">
             {loading ? (
                 <tr><td colSpan="4" className="py-20 text-center text-slate-500 italic">Chargement sécurisé des profils...</td></tr>
+            ) : filteredProfiles.length === 0 ? (
+                <tr><td colSpan="4" className="py-20 text-center text-slate-500 italic">Aucun profil trouvé.</td></tr>
             ) : filteredProfiles.map((user) => (
               <tr key={user.id} className="hover:bg-white/[0.02] transition-colors group">
                 <td className="px-8 py-6">
