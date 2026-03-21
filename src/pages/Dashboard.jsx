@@ -82,10 +82,11 @@ export default function Dashboard() {
     e.stopPropagation();
     if (window.confirm("Supprimer cette ruche ?")) {
       const { error } = await supabase.from('hives').delete().eq('id', hiveId);
-      if (error) toast.error("Erreur lors de la suppression");
-      else {
+      if (error) {
+        toast.error("Erreur lors de la suppression");
+      } else {
         toast.success("Ruche supprimée");
-        fetchHives();
+        fetchHives(); // Rafraîchit la liste après suppression
       }
     }
   };
@@ -173,8 +174,8 @@ export default function Dashboard() {
           isOpen={showAddModal} 
           onClose={() => setShowAddModal(false)} 
           onSuccess={() => {
-            setShowAddModal(false);
-            fetchHives();
+            fetchHives(); // Rafraîchit les données
+            setShowAddModal(false); // Ferme la modale
             toast.success("Ruche ajoutée avec succès !");
           }}
         />
