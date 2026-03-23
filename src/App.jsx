@@ -29,28 +29,40 @@ export default function App() {
         setSession(currentSession);
 
         if (currentSession) {
-          // Si c'est l'admin
+          const currentPath = window.location.pathname;
+
+          // 1. CAS ADMIN
           if (currentSession.user.email === ADMIN_EMAIL) {
-            navigate('/admin', { replace: true });
-          } else {
-            // Vérifier le profil utilisateur
-            const { data: profile, error: profileError } = await supabase
+            // L'admin est forcé vers /admin uniquement s'il n'y est pas déjà
+            if (currentPath !== '/admin') {
+              navigate('/admin', { replace: true });
+            }
+          } 
+          // 2. CAS UTILISATEUR
+          else {
+            const { data: profile } = await supabase
               .from('profiles')
               .select('status')
               .eq('id', currentSession.user.id)
               .single();
 
             if (profile?.status === 'active') {
-              navigate('/dashboard', { replace: true });
+              // ON NE REDIRIGE VERS LE DASHBOARD QUE SI ON EST SUR UNE PAGE D'ENTRÉE (/, /login, /register)
+              // Cela permet de rester sur /hive/:id si on y est déjà
+              if (currentPath === '/' || currentPath === '/login' || currentPath === '/register') {
+                navigate('/dashboard', { replace: true });
+              }
             } else {
-              navigate('/pending', { replace: true });
+              // Si pas actif, on force vers pending (sauf s'il y est déjà)
+              if (currentPath !== '/pending') {
+                navigate('/pending', { replace: true });
+              }
             }
           }
         }
       } catch (err) {
         console.error("Erreur d'initialisation:", err);
       } finally {
-        // QUOI QU'IL ARRIVE, on arrête le chargement après 1 seconde max
         setTimeout(() => setLoading(false), 500);
       }
     };
