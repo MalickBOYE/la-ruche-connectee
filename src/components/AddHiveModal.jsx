@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { X, Layout, MapPin, Phone, Loader2, Search } from 'lucide-react';
+import { X, Layout, MapPin, Phone, Loader2, Search, Cpu } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function AddHiveModal({ onClose, onRefresh, onSuccess, isOpen }) {
@@ -9,7 +9,8 @@ export default function AddHiveModal({ onClose, onRefresh, onSuccess, isOpen }) 
   const [formData, setFormData] = useState({
     name: '',
     address: '',
-    alert_phone: ''
+    alert_phone: '',
+    mac_address: '' // Nouvel état pour l'adresse MAC
   });
 
   // --- LOGIQUE AUTO-COMPLÉTION ADRESSE (API GOUV) ---
@@ -43,25 +44,28 @@ export default function AddHiveModal({ onClose, onRefresh, onSuccess, isOpen }) 
           name: formData.name,      
           address: formData.address,
           alert_phone: formData.alert_phone,
+          mac_address: formData.mac_address.trim().toUpperCase(), // On enregistre la MAC en majuscules
           user_id: user.id
         }
       ]);
 
       if (error) throw error;
 
-      toast.success('Ruche enregistrée !');
+      toast.success('Ruche enregistrée avec succès !');
       
-      // Sécurité : on appelle la fonction de rafraîchissement peu importe son nom
       if (onSuccess) onSuccess();
       if (onRefresh) onRefresh();
       
-      onClose(); // On ferme la modale ici
+      onClose(); 
     } catch (error) {
-      toast.error(`Erreur : ${error.message}`);
+      // Message d'erreur spécifique si la MAC existe déjà (contrainte UNIQUE)
+      const errorMsg = error.code === '23505' 
+        ? "Cet ID Boîtier (MAC) est déjà utilisé par une autre ruche." 
+        : error.message;
+      toast.error(`Erreur : ${errorMsg}`);
     } finally {
       setLoading(false);
     }
-    // LE BLOC EN TROP A ÉTÉ SUPPRIMÉ ICI
   };
 
   if (isOpen === false) return null;
@@ -94,6 +98,24 @@ export default function AddHiveModal({ onClose, onRefresh, onSuccess, isOpen }) 
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             />
+          </div>
+
+          {/* NOUVEAU : ID BOÎTIER (MAC ADDRESS) */}
+          <div>
+            <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-amber-500 mb-3">
+              <Cpu size={14} className="text-amber-500" /> + ID Boîtier (MAC)
+            </label>
+            <input
+              required
+              type="text"
+              placeholder="AA:BB:CC:DD:EE:FF"
+              className="w-full bg-black/40 border border-amber-500/30 rounded-2xl px-6 py-4 text-white font-bold focus:border-amber-500 outline-none transition-all placeholder:text-slate-600"
+              value={formData.mac_address}
+              onChange={(e) => setFormData({ ...formData, mac_address: e.target.value })}
+            />
+            <p className="text-[9px] text-slate-500 mt-2 italic px-2">
+              L'identifiant unique affiché au démarrage de votre boîtier.
+            </p>
           </div>
 
           {/* LOCALISATION AVEC SUGGESTIONS API */}
