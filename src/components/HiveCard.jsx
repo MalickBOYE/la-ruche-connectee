@@ -1,5 +1,5 @@
 import React from 'react';
-import { MapPin, ArrowRight, Trash2, AlertTriangle, CheckCircle, WifiOff, Activity, database } from 'lucide-react';
+import { MapPin, ArrowRight, Trash2, AlertTriangle, CheckCircle, WifiOff, Activity, Database } from 'lucide-react';
 
 export default function HiveCard({ hive, onNavigate, onDelete }) {
   const isOffline = hive.status === 'offline';
