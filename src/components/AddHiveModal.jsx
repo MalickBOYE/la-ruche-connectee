@@ -44,7 +44,6 @@ export default function AddHiveModal({ onClose, onRefresh, onSuccess, isOpen }) 
           name: formData.name,      
           address: formData.address,
           alert_phone: formData.alert_phone,
-          mac_address: formData.mac_address.trim().toUpperCase(), // On enregistre la MAC en majuscules
           user_id: user.id
         }
       ]);
@@ -57,13 +56,7 @@ export default function AddHiveModal({ onClose, onRefresh, onSuccess, isOpen }) 
       if (onRefresh) onRefresh();
       
       onClose(); 
-    } catch (error) {
-      // Message d'erreur spécifique si la MAC existe déjà (contrainte UNIQUE)
-      const errorMsg = error.code === '23505' 
-        ? "Cet ID Boîtier (MAC) est déjà utilisé par une autre ruche." 
-        : error.message;
-      toast.error(`Erreur : ${errorMsg}`);
-    } finally {
+    }  finally {
       setLoading(false);
     }
   };
