@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { supabase } from './lib/supabaseClient';
 
@@ -13,65 +13,80 @@ import UpdatePassword from './pages/UpdatePassword';
 import AdminDashboard from './pages/AdminDashboard';
 import PendingValidation from './pages/PendingValidation';
 
+const ADMIN_EMAIL = 'admin@rucheconnectee.com';
+
 export default function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
-
-  const ADMIN_EMAIL = 'admin@rucheconnectee.com';
+  const location = useLocation();
 
   useEffect(() => {
-    const checkSessionAndStatus = async () => {
+    // 1. Fonction de vérification globale
+    const initializeAuth = async () => {
       try {
-        const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError) throw sessionError;
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
         setSession(currentSession);
-
+        
         if (currentSession) {
-          const currentPath = window.location.pathname;
-
-          // 1. CAS ADMIN
-          if (currentSession.user.email === ADMIN_EMAIL) {
-            // L'admin est forcé vers /admin uniquement s'il n'y est pas déjà
-            if (currentPath !== '/admin') {
-              navigate('/admin', { replace: true });
-            }
-          } 
-          // 2. CAS UTILISATEUR
-          else {
-            const { data: profile } = await supabase
-              .from('profiles')
-              .select('status')
-              .eq('id', currentSession.user.id)
-              .single();
-
-            if (profile?.status === 'active') {
-              // ON NE REDIRIGE VERS LE DASHBOARD QUE SI ON EST SUR UNE PAGE D'ENTRÉE (/, /login, /register)
-              // Cela permet de rester sur /hive/:id si on y est déjà
-              if (currentPath === '/' || currentPath === '/login' || currentPath === '/register') {
-                navigate('/dashboard', { replace: true });
-              }
-            } else {
-              // Si pas actif, on force vers pending (sauf s'il y est déjà)
-              if (currentPath !== '/pending') {
-                navigate('/pending', { replace: true });
-              }
-            }
-          }
+          await handleRedirection(currentSession, window.location.pathname);
         }
-      } catch (err) {
-        console.error("Erreur d'initialisation:", err);
+      } catch (error) {
+        console.error("Erreur d'initialisation:", error);
       } finally {
-        setTimeout(() => setLoading(false), 500);
+        setLoading(false);
       }
     };
 
-    checkSessionAndStatus();
+    // 2. Logique de redirection selon le profil
+    const handleRedirection = async (userSession, currentPath) => {
+      const user = userSession.user;
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, currentSession) => {
-      setSession(currentSession);
-      if (_event === 'SIGNED_OUT') navigate('/login', { replace: true });
+      // CAS ADMIN
+      if (user.email === ADMIN_EMAIL) {
+        if (!currentPath.startsWith('/admin')) {
+          navigate('/admin', { replace: true });
+        }
+        return;
+      }
+
+      // CAS UTILISATEUR (Vérification du profil en DB)
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('status')
+        .eq('id', user.id)
+        .single();
+
+      if (!profile) return;
+
+      if (profile.status === 'blocked') {
+        await supabase.auth.signOut();
+        navigate('/login');
+        alert("Votre compte a été suspendu.");
+      } 
+      else if (profile.status === 'pending') {
+        if (currentPath !== '/pending') navigate('/pending', { replace: true });
+      } 
+      else if (profile.status === 'active') {
+        // Redirige vers dashboard uniquement si on vient des pages d'accueil/connexion
+        const isPublicPage = ['/', '/login', '/register'].includes(currentPath);
+        if (isPublicPage) {
+          navigate('/dashboard', { replace: true });
+        }
+      }
+    };
+
+    initializeAuth();
+
+    // 3. Écouteur de changements d'état (Login/Logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+      setSession(newSession);
+      if (event === 'SIGNED_IN' && newSession) {
+        handleRedirection(newSession, window.location.pathname);
+      }
+      if (event === 'SIGNED_OUT') {
+        navigate('/login', { replace: true });
+      }
     });
 
     return () => subscription?.unsubscribe();
@@ -88,20 +103,24 @@ export default function App() {
 
   return (
     <Routes>
+      {/* Routes Publiques */}
       <Route path="/" element={!session ? <LandingPage /> : <Navigate to="/dashboard" />} />
       <Route path="/login" element={!session ? <Login /> : <Navigate to="/dashboard" />} />
       <Route path="/register" element={<Register />} /> 
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<UpdatePassword />} />
       
+      {/* Routes Privées Utilisateurs */}
       <Route path="/pending" element={session ? <PendingValidation /> : <Navigate to="/login" />} />
       <Route path="/dashboard" element={session ? <Dashboard /> : <Navigate to="/login" />} />
       <Route path="/hive/:id" element={session ? <HiveDetail /> : <Navigate to="/login" />} />
       
+      {/* Route Admin */}
       <Route path="/admin" element={
         session && session.user.email === ADMIN_EMAIL ? <AdminDashboard /> : <Navigate to="/dashboard" />
       } />
       
+      {/* Fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
