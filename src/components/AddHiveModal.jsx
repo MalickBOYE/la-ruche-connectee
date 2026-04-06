@@ -99,25 +99,6 @@ export default function AddHiveModal({ onClose, onRefresh, onSuccess, isOpen }) 
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             />
           </div>
-
-          {/* NOUVEAU : ID BOÎTIER (MAC ADDRESS) */}
-          <div>
-            <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-amber-500 mb-3">
-              <Cpu size={14} className="text-amber-500" /> + ID Boîtier (MAC)
-            </label>
-            <input
-              required
-              type="text"
-              placeholder="AA:BB:CC:DD:EE:FF"
-              className="w-full bg-black/40 border border-amber-500/30 rounded-2xl px-6 py-4 text-white font-bold focus:border-amber-500 outline-none transition-all placeholder:text-slate-600"
-              value={formData.mac_address}
-              onChange={(e) => setFormData({ ...formData, mac_address: e.target.value })}
-            />
-            <p className="text-[9px] text-slate-500 mt-2 italic px-2">
-              L'identifiant unique affiché au démarrage de votre boîtier.
-            </p>
-          </div>
-
           {/* LOCALISATION AVEC SUGGESTIONS API */}
           <div className="relative">
             <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-3">
