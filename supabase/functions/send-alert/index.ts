@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { Resend } from "npm:resend@0.17.2";
 
-const resend = new Resend('re_ZVzU7oMG_H8BYG3umhNbrniiWZWjBHzvJ');
+const resendKey = import.meta.env.VITE_RESEND_API_KEY;
 
 Deno.serve(async (req) => {
   try {
