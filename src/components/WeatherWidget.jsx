@@ -87,31 +87,62 @@ export default function WeatherWidget({ lat, lng, cityName }) {
 
   return (
     <div className="mt-6 flex flex-col gap-4">
+      {/* GRILLE PRINCIPALE : STATUT ET ALERTE */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         
         {/* CARTE STATUT ACTUEL */}
-        <div className="bg-black/40 border border-white/5 p-4 rounded-2xl backdrop-blur-md shadow-xl">
+        <div className="bg-black/40 border border-white/5 p-4 rounded-2xl backdrop-blur-md shadow-xl relative overflow-hidden">
           <div className="flex justify-between items-start mb-3">
-            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Météo Locale</span>
+            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest text-shadow-sm">Météo Locale</span>
             {isRaining ? <CloudRain size={16} className="text-blue-400" /> : <Sun size={16} className="text-amber-400" />}
           </div>
-          <p className="text-white text-sm font-bold mb-1 uppercase tracking-tighter">
-             {temp.toFixed(1)}°C — {weather.weather[0].description}
+          
+          <p className="text-white text-xl font-black mb-1 uppercase tracking-tighter">
+             {temp.toFixed(1)}°C
           </p>
-          <p className="text-slate-400 text-[11px] italic leading-tight">"{comment}"</p>
+          <p className="text-slate-300 text-[10px] uppercase font-bold mb-2 tracking-wide">
+            {weather.weather[0].description}
+          </p>
+          <p className="text-slate-400 text-[11px] italic leading-tight border-l-2 border-amber-500/50 pl-2">
+            "{comment}"
+          </p>
+
+          {/* --- LES STICKERS DE DONNÉES (NOUVEAU) --- */}
+          <div className="flex gap-2 mt-4 pt-3 border-t border-white/5">
+            <div className="flex flex-col">
+              <span className="text-[8px] text-slate-500 uppercase font-black">Humidité</span>
+              <span className="text-xs text-white font-bold">{humidity}%</span>
+            </div>
+            <div className="w-[1px] h-6 bg-white/10 mx-1 self-end"></div>
+            <div className="flex flex-col">
+              <span className="text-[8px] text-slate-500 uppercase font-black">Vent</span>
+              <span className="text-xs text-white font-bold">{windSpeed.toFixed(0)} <span className="text-[8px]">km/h</span></span>
+            </div>
+            <div className="w-[1px] h-6 bg-white/10 mx-1 self-end"></div>
+            <div className="flex flex-col">
+              <span className="text-[8px] text-slate-500 uppercase font-black">Précip.</span>
+              <span className="text-xs text-white font-bold">{rainData} <span className="text-[8px]">mm</span></span>
+            </div>
+          </div>
         </div>
 
         {/* CARTE ALERTES ET CONSEILS */}
-        <div className={`p-4 rounded-2xl border backdrop-blur-md shadow-xl transition-colors duration-500 ${alert ? 'bg-red-500/10 border-red-500/30' : 'bg-emerald-500/10 border-emerald-500/30'}`}>
+        <div className={`p-4 rounded-2xl border backdrop-blur-md shadow-xl transition-all duration-500 ${alert ? 'bg-red-500/10 border-red-500/30 ring-1 ring-red-500/20' : 'bg-emerald-500/10 border-emerald-500/30'}`}>
           <div className="flex justify-between items-start mb-3">
             <span className={`text-[9px] font-black uppercase tracking-widest ${alert ? 'text-red-400' : 'text-emerald-400'}`}>
-              {alert ? "Vigilance" : "Stabilité"}
+              {alert ? "Vigilance Critique" : "Stabilité Climatique"}
             </span>
-            {alert ? <AlertTriangle size={16} className="text-red-400 animate-pulse" /> : <CheckCircle size={16} className="text-emerald-400" />}
+            {alert ? <AlertTriangle size={18} className="text-red-400 animate-pulse" /> : <CheckCircle size={18} className="text-emerald-400" />}
           </div>
-          <p className="text-white text-[11px] leading-tight font-medium">
-            {alert ? alert : "Aucun changement climatique inhabituel détecté."}
+          <p className="text-white text-sm leading-snug font-medium pr-4">
+            {alert ? alert : "Les capteurs ne détectent aucune anomalie majeure pour vos colonies."}
           </p>
+          {!alert && (
+            <div className="mt-4 flex items-center gap-2 text-emerald-400/60 uppercase text-[8px] font-black tracking-widest">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></div>
+              Système en veille active
+            </div>
+          )}
         </div>
 
       </div>
