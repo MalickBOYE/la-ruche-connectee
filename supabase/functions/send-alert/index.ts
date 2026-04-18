@@ -1,15 +1,18 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { Resend } from "npm:resend@0.17.2";
 
-const resendKey = import.meta.env.VITE_RESEND_API_KEY;
+// 1. Correction de l'accès à la clé API (Deno utilise Deno.env.get)
+const resendKey = Deno.env.get("RESEND_API_KEY");
+
+// 2. INITIALISATION CRITIQUE : Tu dois créer l'instance 'resend'
+const resend = new Resend(resendKey);
+
 Deno.serve(async (req) => {
   try {
-    // Récupération des données envoyées par HiveDetail.jsx
     const { email, hive_name, alert_type, value } = await req.json();
 
     const subject = `⚠️ Alerte Ruche : ${alert_type} sur ${hive_name}`;
     
-    // Logique de message unique et propre
     let messageBody = "";
     if (alert_type === 'TEMP') {
       messageBody = `La température est tombée à ${value}°C.`;
@@ -19,7 +22,7 @@ Deno.serve(async (req) => {
       messageBody = `Le poids a atteint ${value}kg.`;
     }
 
-    // Envoi de l'email
+    // 3. L'envoi utilisera maintenant l'instance initialisée plus haut
     const data = await resend.emails.send({
       from: 'onboarding@resend.dev',
       to: 'boye.malick02@gmail.com', 
@@ -33,7 +36,7 @@ Deno.serve(async (req) => {
             Ruche concernée : <strong>${hive_name}</strong><br />
             Type d'alerte : ${alert_type}
           </p>
-          <a href="https://ton-dashboard.vercel.app" style="display: inline-block; padding: 10px 20px; background-color: #f59e0b; color: white; text-decoration: none; border-radius: 8px; margin-top: 10px;">
+          <a href="https://la-ruche-connectee.vercel.app/" style="display: inline-block; padding: 10px 20px; background-color: #f59e0b; color: white; text-decoration: none; border-radius: 8px; margin-top: 10px;">
             Ouvrir le Dashboard
           </a>
         </div>
