@@ -1,11 +1,13 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from 'recharts';
 import { 
-  ArrowLeft, Bluetooth, Wifi, Thermometer, Droplets, 
-  Battery, Scale, Download, MapPin, Activity, Settings, 
-  Trash2, AlertTriangle, CheckCircle, Eye 
+  LineChart, Line, XAxis, YAxis, Tooltip, 
+  ResponsiveContainer, Legend, CartesianGrid 
+} from 'recharts';
+import { 
+  ArrowLeft, Bluetooth, Wifi, MapPin, Activity, Settings, 
+  Trash2, Download, CheckCircle, Moon, WifiOff, Eye 
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -15,134 +17,84 @@ import Footer from '../components/Footer';
 import HiveSettingsModal from '../components/HiveSettingsModal';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
 import WeatherWidget from '../components/WeatherWidget';
-
-// Import de ton nouveau service IA
+import HiveStats from '../components/HiveStats'; // Utilisation du composant dédié
 import { getBeeCount } from '../services/beeCount';
 
 export default function HiveDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   
-  // --- ÉTATS ---
   const [data, setData] = useState([]);
   const [hiveInfo, setHiveInfo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [beeCount, setBeeCount] = useState(0);
-  const [isOffline, setIsOffline] = useState(false);
   const [isBleConnected, setIsBleConnected] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  const [now, setNow] = useState(new Date());
 
   const last = data.length > 0 ? data[data.length - 1] : null;
 
-  // --- LOGIQUE IA (DÉTECTION ABEILLES) ---
+  // Rafraîchissement horloge pour le statut
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // --- LOGIQUE IA ---
   const analyzeBees = useCallback(async (imageUrl, measurementId) => {
     if (!imageUrl) return;
     try {
       const count = await getBeeCount(imageUrl);
       setBeeCount(count);
-
-      // Mise à jour de la colonne bee_count dans Supabase
-      await supabase
-        .from('measurements')
-        .update({ bee_count: count })
-        .eq('id', measurementId);
+      await supabase.from('measurements').update({ bee_count: count }).eq('id', measurementId);
     } catch (err) {
-      console.error("IA Analysis Error:", err);
+      console.error("IA Error:", err);
     }
   }, []);
 
-  // --- CHARGEMENT INITIAL ---
+  // --- CHARGEMENT ---
   const loadInitialData = useCallback(async () => {
     setLoading(true);
     try {
-      // 1. Infos de la ruche
-      const { data: hive, error: hiveError } = await supabase
-        .from('hives')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-      if (hiveError) throw hiveError;
+      const { data: hive } = await supabase.from('hives').select('*').eq('id', id).single();
       setHiveInfo(hive);
 
-      // 2. Dernières mesures (100 dernières)
-      const { data: m, error: mError } = await supabase
-        .from('measurements')
-        .select('*')
-        .eq('hive_id', id)
-        .order('created_at', { ascending: true })
-        .limit(100);
-
-      if (mError) throw mError;
+      const { data: m } = await supabase.from('measurements')
+        .select('*').eq('hive_id', id).order('created_at', { ascending: true }).limit(100);
+      
       setData(m || []);
-
-      // 3. Si la dernière mesure a déjà un bee_count, on l'affiche
-      const lastMeasure = m?.[m.length - 1];
-      if (lastMeasure?.bee_count) {
-        setBeeCount(lastMeasure.bee_count);
-      }
+      if (m?.[m.length - 1]?.bee_count) setBeeCount(m[m.length - 1].bee_count);
     } catch (error) {
-      toast.error("Erreur de chargement");
+      toast.error("Erreur de liaison");
     } finally {
       setLoading(false);
     }
   }, [id]);
 
-  // --- INITIALISATION & REALTIME ---
   useEffect(() => {
     loadInitialData();
-
     const channel = supabase.channel(`live_hive_${id}`)
-      .on('postgres_changes', 
-        { event: 'INSERT', schema: 'public', table: 'measurements', filter: `hive_id=eq.${id}` }, 
-        (payload) => {
-          setData(prev => {
-            const exists = prev.find(m => m.id === payload.new.id);
-            if (exists) return prev;
-            return [...prev, payload.new].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-          });
-
-          // Si une image est présente, on lance l'IA
-          if (payload.new.image_url) {
-            analyzeBees(payload.new.image_url, payload.new.id);
-          }
-          
-          toast.success("Données synchronisées (Cloud)");
-        }
-      )
-      .subscribe();
-
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'measurements', filter: `hive_id=eq.${id}` }, 
+      (payload) => {
+        setData(prev => [...prev, payload.new].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)));
+        if (payload.new.image_url) analyzeBees(payload.new.image_url, payload.new.id);
+        toast.success("Synchronisation Cloud");
+      }).subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [id, loadInitialData, analyzeBees]);
 
-  // --- SURVEILLANCE STATUS OFFLINE (75 MIN) ---
-  useEffect(() => {
-    const checkInactivity = () => {
-      if (!last) return;
-      const lastUpdate = new Date(last.created_at).getTime();
-      const now = new Date().getTime();
-      const diffMinutes = (now - lastUpdate) / (1000 * 60);
-      setIsOffline(diffMinutes > 75);
-    };
-
-    const interval = setInterval(checkInactivity, 30000);
-    checkInactivity();
-    return () => clearInterval(interval);
-  }, [last]);
-
-  // --- ACTIONS (EXPORT & BLUETOOTH) ---
+  // --- ACTIONS ---
   const exportToCSV = () => {
     if (data.length === 0) return toast.error("Aucune donnée");
-    const headers = "Date,Heure,Poids(kg),Temp_Int(C),Humi_Int(%),Abeilles\n";
+    const headers = "Date,Heure,Poids(kg),Temp_Int(C),Temp_Ext(C),Humi_Int(%),Humi_Ext(%),Abeilles\n";
     const csvContent = data.map(m => {
       const d = new Date(m.created_at);
-      return `${d.toLocaleDateString()},${d.toLocaleTimeString()},${m.weight || 0},${m.temp_int || 0},${m.hum_int || 0},${m.bee_count || 0}`;
+      return `${d.toLocaleDateString()},${d.toLocaleTimeString()},${m.weight},${m.temp_int},${m.temp_ext},${m.hum_int},${m.hum_ext},${m.bee_count}`;
     }).join("\n");
     const blob = new Blob([headers + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.href = url;
+    link.href = window.URL.createObjectURL(blob);
     link.setAttribute('download', `${hiveInfo?.name}_Export.csv`);
     link.click();
   };
@@ -153,14 +105,25 @@ export default function HiveDetail() {
         filters: [{ namePrefix: 'BeeMonitor' }], 
         optionalServices: ['environmental_sensing'] 
       });
-      const server = await device.gatt.connect();
+      await device.gatt.connect();
       setIsBleConnected(true);
-      toast.success("Liaison Bluetooth Active");
-      // Logique de lecture GATT simplifiée ici pour l'exemple
-    } catch (err) { 
-      toast.error("Échec Bluetooth"); 
-    }
+      toast.success("Liaison Directe Active");
+    } catch (err) { toast.error("Échec Bluetooth"); }
   };
+
+  // --- GESTION DU STATUT (DYNAMIQUE) ---
+  const getStatus = () => {
+    if (!last) return { label: "Inactif", color: "text-slate-500", icon: <WifiOff size={12}/> };
+    const diff = (now - new Date(last.created_at)) / 60000;
+    const hour = now.getHours();
+    const isNight = hour >= 21 || hour <= 7;
+
+    if (diff < 45) return { label: "Online", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/50", icon: <CheckCircle size={12}/> };
+    if (isNight) return { label: "Sommeil", color: "text-blue-400 bg-blue-500/10 border-blue-500/50", icon: <Moon size={12}/> };
+    return { label: "Offline", color: "text-red-400 bg-red-500/10 border-red-500/50", icon: <WifiOff size={12}/> };
+  };
+
+  const status = getStatus();
 
   if (loading) return (
     <div className="h-screen bg-[#020617] flex flex-col items-center justify-center text-amber-500 gap-4">
@@ -170,29 +133,23 @@ export default function HiveDetail() {
   );
 
   return (
-    <div className="min-h-screen bg-[#020617] text-white flex flex-col relative overflow-x-hidden font-sans">
+    <div className="min-h-screen bg-[#020617] text-white flex flex-col font-sans">
       <Toaster position="top-right" />
       <BackgroundSlider />
 
-      {/* NAVIGATION */}
-      <nav className="relative z-10 flex items-center justify-between px-4 md:px-8 py-6 backdrop-blur-md bg-black/20 border-b border-white/5">
-        <button onClick={() => navigate('/dashboard')} className="flex items-center gap-2 text-slate-500 hover:text-white transition-all font-black uppercase text-[10px] tracking-widest">
+      <nav className="relative z-10 flex items-center justify-between px-8 py-6 backdrop-blur-md bg-black/20 border-b border-white/5">
+        <button onClick={() => navigate('/dashboard')} className="flex items-center gap-2 text-slate-500 hover:text-white uppercase text-[10px] font-black tracking-widest transition-all">
           <ArrowLeft size={18}/> Retour
         </button>
 
-        <div className="flex items-center gap-2 md:gap-4">
-          <div className={`hidden md:flex items-center gap-2 px-4 py-1.5 rounded-full border ${isOffline ? 'bg-red-500/10 border-red-500/50 text-red-500' : 'bg-emerald-500/10 border-emerald-500/50 text-emerald-500'} text-[9px] font-black uppercase tracking-widest`}>
-            {isOffline ? <AlertTriangle size={12}/> : <CheckCircle size={12}/>}
-            {isOffline ? 'Ruche Déconnectée' : 'Système Online'}
+        <div className="flex items-center gap-4">
+          <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full border ${status.color} text-[9px] font-black uppercase tracking-widest`}>
+            {status.icon} {status.label}
           </div>
 
-          <div className="flex gap-2 mr-2 md:mr-4 border-r border-white/10 pr-2 md:pr-4">
-            <button onClick={() => setShowSettings(true)} className="p-2 md:p-3 bg-white/5 rounded-xl text-slate-400 hover:text-amber-500 transition-all border border-white/5">
-              <Settings size={18} />
-            </button>
-            <button onClick={() => setShowDelete(true)} className="p-2 md:p-3 bg-white/5 rounded-xl text-slate-400 hover:text-red-500 transition-all border border-white/5">
-              <Trash2 size={18} />
-            </button>
+          <div className="flex gap-2 border-r border-white/10 pr-4">
+            <button onClick={() => setShowSettings(true)} className="p-3 bg-white/5 rounded-xl text-slate-400 hover:text-amber-500 transition-all border border-white/5"><Settings size={18}/></button>
+            <button onClick={() => setShowDelete(true)} className="p-3 bg-white/5 rounded-xl text-slate-400 hover:text-red-500 transition-all border border-white/5"><Trash2 size={18}/></button>
           </div>
 
           <button onClick={exportToCSV} className="hidden lg:flex items-center gap-2 px-5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black hover:bg-white/10 transition-all text-slate-300 uppercase tracking-widest">
@@ -200,101 +157,69 @@ export default function HiveDetail() {
           </button>
           
           <div className="flex bg-black/40 p-1 rounded-2xl border border-white/10 backdrop-blur-xl">
-              <div className="flex items-center gap-2 px-3 md:px-4 py-2 text-amber-500 font-black text-[9px] uppercase tracking-widest">
-                <Wifi size={14} className={isOffline ? "" : "animate-pulse"} /> Cloud
-              </div>
-              <button onClick={connectBluetooth} className={`flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl text-[9px] font-black transition-all uppercase tracking-widest ${isBleConnected ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>
-                <Bluetooth size={14}/> {isBleConnected ? 'Direct' : 'BT'}
-              </button>
+            <div className="flex items-center gap-2 px-4 py-2 text-amber-500 font-black text-[9px] uppercase tracking-widest">
+              <Wifi size={14} className={status.label === "Online" ? "animate-pulse" : ""} /> Cloud
+            </div>
+            <button onClick={connectBluetooth} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[9px] font-black transition-all uppercase tracking-widest ${isBleConnected ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>
+              <Bluetooth size={14}/> {isBleConnected ? 'Direct' : 'BT'}
+            </button>
           </div>
         </div>
       </nav>
 
-      <main className="relative z-10 max-w-7xl mx-auto px-4 md:px-8 py-12 w-full flex-grow">
-        <div className="bg-slate-900/40 border border-white/10 rounded-[2.5rem] md:rounded-[3.5rem] p-6 md:p-16 backdrop-blur-3xl shadow-2xl">
+      <main className="relative z-10 max-w-7xl mx-auto px-8 py-12 w-full flex-grow">
+        <div className="bg-slate-900/40 border border-white/10 rounded-[3.5rem] p-16 backdrop-blur-3xl shadow-2xl">
           
           <div className="flex flex-col lg:flex-row justify-between items-start mb-12 gap-8">
-            <div className="flex flex-col gap-4">
-              <h1 className="text-4xl md:text-7xl font-black italic tracking-tighter text-amber-500 uppercase leading-tight">
-                {hiveInfo?.name || "Sans Nom"}
-              </h1>
-              <p className="flex items-center gap-2 text-slate-500 text-[10px] md:text-xs font-bold uppercase tracking-[0.3em]">
-                <MapPin size={16} className="text-amber-500" /> {hiveInfo?.address || "Lieu non défini"}
+            <div>
+              <h1 className="text-7xl font-black italic text-amber-500 uppercase leading-none mb-4 tracking-tighter">{hiveInfo?.name}</h1>
+              <p className="flex items-center gap-2 text-slate-500 text-xs font-bold uppercase tracking-widest">
+                <MapPin size={16} className="text-amber-500" /> {hiveInfo?.address}
               </p>
-              
-              {hiveInfo && (
-                <div className="w-full max-w-sm mt-4">
-                  <WeatherWidget lat={hiveInfo.latitude} lng={hiveInfo.longitude} cityName={hiveInfo.name} />
-                </div>
-              )}
+              {hiveInfo && <div className="mt-8"><WeatherWidget lat={hiveInfo.latitude} lng={hiveInfo.longitude} /></div>}
             </div>
 
-            {/* KPI IA BEES */}
-            <div className="bg-black/40 border border-amber-500/30 p-6 rounded-[2rem] flex items-center gap-6 shadow-xl w-full lg:w-auto">
-              <div className="h-16 w-16 bg-amber-500/20 rounded-2xl flex items-center justify-center text-amber-500">
-                <Eye size={32} />
-              </div>
+            <div className="bg-black/40 border border-amber-500/30 p-8 rounded-[2.5rem] flex items-center gap-8 shadow-xl">
+              <div className="h-16 w-16 bg-amber-500/20 rounded-2xl flex items-center justify-center text-amber-500"><Eye size={32} /></div>
               <div>
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Vision Intel (Roboflow)</span>
-                <div className="text-3xl font-black text-white">{beeCount} <span className="text-sm text-amber-500 uppercase">Abeilles</span></div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">IA Vision Analysis</span>
+                <div className="text-4xl font-black text-white">{beeCount} <span className="text-sm text-amber-500">ABEILLES</span></div>
               </div>
             </div>
           </div>
 
-          {/* KPI GRIDS */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-16">
-            <Kpi icon={<Scale/>} label="Masse" value={last?.weight} unit="kg" color="text-amber-400" alert={last?.weight >= 80} />
-            <Kpi icon={<Thermometer/>} label="Interne" value={last?.temp_int} unit="°C" color="text-orange-500" alert={last?.temp_int < 32} />
-            <Kpi icon={<Droplets/>} label="Humidité" value={last?.hum_int} unit="%" color="text-blue-400" alert={last?.hum_int < 45} />
-            <Kpi icon={<Battery/>} label="Batterie" value={last?.battery} unit="%" color="text-emerald-500" />
-          </div>
+          {/* COMPOSANT KPI DES CAPTEURS ARDUINO AVEC ALERTES */}
+          <HiveStats lastData={last} />
 
-          {/* CHART */}
-          <div className="bg-black/30 rounded-[2rem] md:rounded-[2.5rem] p-4 md:p-10 border border-white/5">
+          <div className="bg-black/30 rounded-[2.5rem] p-10 border border-white/5 h-[500px]">
             <div className="flex items-center gap-3 mb-8 ml-4">
               <Activity size={18} className="text-amber-500" />
-              <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500">Analyses Graphiques</h3>
+              <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500">Flux de données</h3>
             </div>
-            
-            <div className="h-[350px] md:h-[450px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
-                  <XAxis 
-                    dataKey="created_at" 
-                    tickFormatter={(str) => new Date(str).toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'})}
-                    stroke="#475569" fontSize={9}
-                  />
-                  <YAxis stroke="#475569" fontSize={9} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{background: '#0f172a', border: 'none', borderRadius: '15px'}} />
-                  <Legend verticalAlign="top" align="right" />
-                  <Line name="Poids" type="monotone" dataKey="weight" stroke="#fbbf24" strokeWidth={4} dot={false} />
-                  <Line name="Temp" type="monotone" dataKey="temp_int" stroke="#f97316" strokeWidth={2} dot={false} />
-                  <Line name="Humi" type="monotone" dataKey="hum_int" stroke="#3b82f6" strokeWidth={2} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={data}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
+                <XAxis 
+                  dataKey="created_at" 
+                  tickFormatter={(t) => new Date(t).toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'})} 
+                  stroke="#475569" fontSize={10} 
+                />
+                <YAxis stroke="#475569" fontSize={10} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{background: '#0f172a', border: 'none', borderRadius: '15px'}} labelFormatter={(l) => new Date(l).toLocaleString('fr-FR')} />
+                <Legend verticalAlign="top" align="right" />
+                <Line name="Poids" type="monotone" dataKey="weight" stroke="#fbbf24" strokeWidth={4} dot={false} />
+                <Line name="Temp Int" type="monotone" dataKey="temp_int" stroke="#f97316" strokeWidth={2} dot={false} />
+                <Line name="Temp Ext" type="monotone" dataKey="temp_ext" stroke="#fb7185" strokeWidth={2} strokeDasharray="5 5" dot={false} />
+                <Line name="Humi Int" type="monotone" dataKey="hum_int" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                <Line name="Humi Ext" type="monotone" dataKey="hum_ext" stroke="#818cf8" strokeWidth={2} strokeDasharray="5 5" dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
         </div>
       </main>
-
       <Footer />
-
       {showSettings && <HiveSettingsModal hive={hiveInfo} onClose={() => setShowSettings(false)} onRefresh={loadInitialData} />}
       {showDelete && <DeleteConfirmModal hive={hiveInfo} onClose={() => setShowDelete(false)} onDeleted={() => navigate('/dashboard')} />}
     </div>
   );
 }
-
-// COMPOSANT KPI INTERNE
-const Kpi = ({ icon, label, value, unit, color, alert }) => (
-  <div className={`bg-[#0f172a]/60 border ${alert ? 'border-red-500 animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.2)]' : 'border-white/5'} p-5 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] transition-all group shadow-xl`}>
-    <div className={`flex items-center gap-3 text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] mb-4 ${alert ? 'text-red-500' : color} opacity-80`}>
-      {icon} {label}
-    </div>
-    <div className="text-2xl md:text-4xl font-black tracking-tighter">
-      {value != null ? value : '--'}
-      <span className="text-[10px] md:text-xs text-slate-500 ml-2 font-bold uppercase tracking-widest">{unit}</span>
-    </div>
-  </div>
-);
